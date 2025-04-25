@@ -1,0 +1,25 @@
+users-api/
+├── src/
+│   ├── domain/
+│   │   ├── entities/
+│   │   │   └── user.ts
+│   │   ├── repositories/
+│   │   │   └── user-repository.ts
+│   │   ├── use-cases/
+│   │   │   ├── create-user.ts
+│   │   │   ├── get-users.ts
+│   │   │   ├── get-user-by-id.ts
+│   │   │   ├── update-user.ts
+│   │   │   ├── delete-user.ts
+│   │   ├── validators/
+│   │   │   └── user-schema.ts
+│   ├── adapters/
+│   │   ├── controllers/
+│   │   │   └── user-controller.ts
+│   │   ├── repositories/
+│   │   │   └── postgres-user-repository.ts
+│   ├── infrastructure/
+│   │   └── data-source.ts
+│   ├── index.ts
+├── package.json
+├── tsconfig.json
