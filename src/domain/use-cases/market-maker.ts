@@ -1,3 +1,5 @@
+import { TradeRepository } from './../repositories/trade-repository';
+import { MatchOrderUseCase } from './match-orders';
 import { OrderRepository } from './../repositories/order-repository';
 import { Order } from '../entities/order';
 import { CoinExPriceService } from '../../infrastructure/coinex-price-service';
@@ -7,7 +9,9 @@ export class MarketMakerUseCase{
 
     constructor (
         private orderRepository:OrderRepository,
-        private priceService: CoinExPriceService
+        private priceService: CoinExPriceService,
+        private matchOrderUseCase:MatchOrderUseCase,
+        private tradeRepository:TradeRepository
     ){
         // Update orders whenever price changes
         this.priceService.onPriceChange((price) => {
@@ -27,13 +31,17 @@ export class MarketMakerUseCase{
             if (!currentPrice){
                 throw new Error('No price data available')
             }
+
+            // Run order matching after creating new orders
+            await this.matchOrderUseCase.execute(pair);
+            
             const lastOrders = await this.orderRepository.findOpenOrders(pair);
-            let needToChange = (lastOrders.length === 0) ;
+            let needToChange = (lastOrders.filter(o => o.source === 'market-maker').length === 0) ;
             
             //console.log(lastOrders)
             
             for(const order of lastOrders){
-                if(currentPrice && (Math.abs(order.price - currentPrice) > (currentPrice * (priceDiffThreshold /100)) )){
+                if(order.source === 'market-maker' && currentPrice && (Math.abs(order.price - currentPrice) > (currentPrice * (priceDiffThreshold /100)) )){
                     console.log(`Cancelling order ${order.id}: price ${order.price} too far from ${currentPrice}`);
                     await this.orderRepository.cancelOldOrders(pair,0.1);
                     needToChange = true
@@ -41,12 +49,14 @@ export class MarketMakerUseCase{
             }
 
             // Limit total open orders to 10
-            await this.orderRepository.limitOpenOrders(pair, 10);
+            await this.orderRepository.limitOpenOrders(pair, 20);
 
             if(needToChange){
                 console.log(`Creating new orders for ${pair} at price ${currentPrice}`);
                 await this.createOrders(pair,currentPrice,spread,amount); 
             }
+
+            
         }
         finally {
             this.isProcessing = false;
@@ -68,7 +78,8 @@ export class MarketMakerUseCase{
             price: buyPrice,
             amount,
             status:'open',
-            timestamp:new Date()
+            timestamp:new Date(),
+            source:'market-maker'
         };
 
         const sellOrder:Omit<Order,'id'> = {
@@ -77,7 +88,8 @@ export class MarketMakerUseCase{
             price: sellPrice,
             amount,
             status:'open',
-            timestamp:new Date()
+            timestamp:new Date(),
+            source:'market-maker'
         };
 
         await this.orderRepository.create(buyOrder);

@@ -19,6 +19,9 @@ import { OrderController } from './adapters/controllers/order-controller';
 import { MarketMakerUseCase } from './domain/use-cases/market-maker';
 import { CoinExPriceService } from './infrastructure/coinex-price-service';
 import { GetOrderbookUseCase } from './domain/use-cases/get-orderbook';
+import { PostgresTradeRepository } from './adapters/repositories/postgres-trade-repository';
+import { MatchOrderUseCase } from './domain/use-cases/match-orders';
+import { CreateExternalOrderUseCase } from './domain/use-cases/create-external-order';
 
 const appBase = express();
 const wsInstance = expressWs(appBase)
@@ -36,10 +39,13 @@ AppDataSource.initialize().then(()=>{
     const userController = new UserController(getUsersUseCase,getUserByIdUseCase,createUserUseCase,updateUserUseCase,deleteUserUseCase);
 
     const orderRepository = new PostgresOrderRepository();
+    const tradeRepository = new PostgresTradeRepository();
     const priceService = new CoinExPriceService();
     const getOrderbookUseCase = new GetOrderbookUseCase(orderRepository);
-    const marketMakerUseCase = new MarketMakerUseCase(orderRepository,priceService);
-    const orderController = new OrderController(marketMakerUseCase,getOrderbookUseCase);
+    const matchOrderUseCase = new MatchOrderUseCase(orderRepository, tradeRepository);
+    const marketMakerUseCase = new MarketMakerUseCase(orderRepository,priceService,matchOrderUseCase,tradeRepository);
+    const createExternalOrderUseCase = new CreateExternalOrderUseCase(orderRepository);
+    const orderController = new OrderController(marketMakerUseCase,getOrderbookUseCase,matchOrderUseCase,createExternalOrderUseCase);
 
     app.get('/users',(req,res)=>userController.getUsers(req,res));
     app.get('/users/:id',(req,res)=>userController.getUserById(req,res));
@@ -50,6 +56,8 @@ AppDataSource.initialize().then(()=>{
     // Market Maker Routes
     app.post('/market-maker',(req,res)=>orderController.runMarketMaker(req,res));
     app.get('/orderbook' , (req,res)=>orderController.getOrderBook(req,res));
+    app.post('/match-orders', (req, res) => orderController.matchOrders(req, res));
+    app.post('/external-order', (req, res) => orderController.createExternalOrder(req, res));
 
     app.listen(3000,()=>{
         console.log('Server running on http://localhost:3000');

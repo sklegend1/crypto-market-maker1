@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import { User } from '../domain/entities/user';
 import { Order } from '../domain/entities/order';
+import { Trade } from '../domain/entities/trade';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -9,7 +10,7 @@ export const AppDataSource = new DataSource({
   username: 'postgres',
   password: 'Sohrab1158',
   database: 'users_api',
-  entities: [User,Order],
+  entities: [User,Order,Trade],
   synchronize: true, // Auto-create tables (for development only)
   logging: false
 });

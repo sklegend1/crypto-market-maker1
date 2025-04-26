@@ -41,4 +41,20 @@ export class PostgresOrderRepository implements OrderRepository{
           );
         }
       }
+
+    async findBestBuyOrder(pair: string): Promise<Order | null> {
+      const order = await this.repository.findOne({
+        where: {pair,type:'buy',status:'open'},
+        order:{price:'DESC'}
+      })
+      return order|| null
+    }
+
+    async findBestSellOrder(pair: string): Promise<Order | null> {
+      const order = await this.repository.findOne({
+        where:{pair,type:'sell',status:'open'},
+        order:{price:'ASC'}
+      })
+      return order||null
+    }
 }

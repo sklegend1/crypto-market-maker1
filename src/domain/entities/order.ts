@@ -24,4 +24,6 @@ export class Order{
     @Column()
     timestamp! : Date;
 
+    @Column({ default: 'market-maker' })
+    source!: 'market-maker' | 'external'; // To distinguish orders
 }

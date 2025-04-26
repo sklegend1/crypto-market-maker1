@@ -6,4 +6,6 @@ export interface OrderRepository {
     updateStatus(id:number,status:Order['status']):Promise<void>;
     cancelOldOrders(pair:string,maxAgeSeconds:number):Promise<void>;
     limitOpenOrders(pair: string, maxOrders: number): Promise<void>;
+    findBestBuyOrder(pair: string): Promise<Order | null>;
+    findBestSellOrder(pair: string): Promise<Order | null>;
 }
