@@ -22,6 +22,7 @@ import { GetOrderbookUseCase } from './domain/use-cases/get-orderbook';
 import { PostgresTradeRepository } from './adapters/repositories/postgres-trade-repository';
 import { MatchOrderUseCase } from './domain/use-cases/match-orders';
 import { CreateExternalOrderUseCase } from './domain/use-cases/create-external-order';
+import { CoinexDepthService } from './infrastructure/coinex-depth-service';
 
 const appBase = express();
 const wsInstance = expressWs(appBase)
@@ -37,15 +38,18 @@ AppDataSource.initialize().then(()=>{
     const updateUserUseCase = new UpdateUserUseCase(userRepository);
     const deleteUserUseCase = new DeleteUserUseCase(userRepository);
     const userController = new UserController(getUsersUseCase,getUserByIdUseCase,createUserUseCase,updateUserUseCase,deleteUserUseCase);
-
+    
+    const depthService = new CoinexDepthService();
     const orderRepository = new PostgresOrderRepository();
     const tradeRepository = new PostgresTradeRepository();
     const priceService = new CoinExPriceService();
     const getOrderbookUseCase = new GetOrderbookUseCase(orderRepository);
     const matchOrderUseCase = new MatchOrderUseCase(orderRepository, tradeRepository);
-    const marketMakerUseCase = new MarketMakerUseCase(orderRepository,priceService,matchOrderUseCase,tradeRepository);
+    const marketMakerUseCase = new MarketMakerUseCase(orderRepository,priceService,matchOrderUseCase,tradeRepository,depthService);
     const createExternalOrderUseCase = new CreateExternalOrderUseCase(orderRepository);
     const orderController = new OrderController(marketMakerUseCase,getOrderbookUseCase,matchOrderUseCase,createExternalOrderUseCase);
+
+    
 
     app.get('/users',(req,res)=>userController.getUsers(req,res));
     app.get('/users/:id',(req,res)=>userController.getUserById(req,res));

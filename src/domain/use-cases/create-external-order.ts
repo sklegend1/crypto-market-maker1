@@ -16,6 +16,7 @@ export class CreateExternalOrderUseCase {
         type,
         price,
         amount,
+        initAmount:amount,
         status: 'open',
         timestamp: new Date(),
         source: 'external'

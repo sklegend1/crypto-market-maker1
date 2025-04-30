@@ -2,6 +2,7 @@ import { OrderRepository } from './../repositories/order-repository';
 import { Order } from "../entities/order";
 import { Trade } from "../entities/trade";
 import { TradeRepository } from '../repositories/trade-repository';
+import { AppDataSource } from '../../infrastructure/data-source';
 
 
 export class MatchOrderUseCase{
@@ -22,6 +23,15 @@ export class MatchOrderUseCase{
             }
 
             if (buyOrder.price >= sellOrder.price){
+                // Check if both orders are market-maker
+                if (buyOrder.source === 'market-maker' && sellOrder.source === 'market-maker') {
+                    console.log('Skipping match: both orders are market-maker');
+                    break; // Prevent market-maker orders from matching each other
+                }
+
+                await AppDataSource.transaction(async transactionalEntityManager =>{
+
+                
                 //Match found ! time to create a trade
                 const tradePrice = (buyOrder.price + sellOrder.price) /2;
                 const tradeAmount = Math.min(buyOrder.amount,sellOrder.amount);
@@ -35,39 +45,41 @@ export class MatchOrderUseCase{
                     timestamp:new Date()
                 }
 
-                await this.tradeRepository.create(trade);
+                await transactionalEntityManager.getRepository(Trade).save(trade);
 
                 //Update orders
-                await this.orderRepository.updateStatus(buyOrder.id,'filled');
-                await this.orderRepository.updateStatus(sellOrder.id,'filled');
+                // Update order amounts and statuses
+                const buyRemaining = buyOrder.amount - tradeAmount;
+                const sellRemaining = sellOrder.amount - tradeAmount;
 
-                console.log(`Matched trade: ${pair} at ${tradePrice}, amount ${tradeAmount}`);
-
-                if(sellOrder.source === 'market-maker'){
-                   const newSell:Omit<Order,'id'>  = {
-                        pair,
-                        price:trade.price*1.005,
-                        amount:sellOrder.amount,
-                        type:sellOrder.type,
-                        source:'market-maker',
-                        timestamp:new Date(),
-                        status:'open'
-                   }
-                   await this.orderRepository.create(newSell); 
-                }
+                if (buyRemaining <= 0) {
+                    await transactionalEntityManager.getRepository(Order).update(buyOrder.id, {status:'filled',amount:0});
                     
-                else if(buyOrder.source === 'market-maker') {
-                    const newBuy:Omit<Order,'id'>  = {
-                        pair,
-                        price:trade.price*0.995,
-                        amount:buyOrder.amount,
-                        type:buyOrder.type,
-                        source:'market-maker',
-                        timestamp:new Date(),
-                        status:'open'
-                   }
-                   await this.orderRepository.create(newBuy); 
+                  } else {
+                    await transactionalEntityManager.getRepository(Order).update(buyOrder.id, {amount:buyRemaining});
+                  }
+                
+                if (sellRemaining <= 0) {
+                    await transactionalEntityManager.getRepository(Order).update(sellOrder.id, {status:'filled',amount:0});
+                    
+                } else {
+                    
+                await transactionalEntityManager.getRepository(Order).update(sellOrder.id, {amount:sellRemaining});
                 }
+                // Refresh orders to get updated status and amount
+                const updatedBuyOrder = await transactionalEntityManager.getRepository(Order).findOne({ where: { id: buyOrder.id } });
+                const updatedSellOrder = await transactionalEntityManager.getRepository(Order).findOne({ where: { id: sellOrder.id } });
+
+                // Validate volumes with updated orders
+                await this.validateOrderVolume(updatedBuyOrder!, transactionalEntityManager);
+                await this.validateOrderVolume(updatedSellOrder!, transactionalEntityManager);
+            })
+
+                //console.log(`Matched trade: ${pair} at ${tradePrice}, amount ${tradeAmount}`);
+
+                
+                    
+                
 
             }
             else{
@@ -75,6 +87,62 @@ export class MatchOrderUseCase{
                 break;
             }
 
+            
+
         }
     }
+
+    private async validateOrderVolume(order: Order, manager: any) {
+        // Calculate total traded amount for buy and sell trades separately
+        const buyTradeSum = await manager.getRepository(Trade).createQueryBuilder('trade')
+          .select('SUM(trade.amount)', 'total')
+          .where('trade.buyOrderId = :id', { id: order.id })
+          .getRawOne();
+    
+        const sellTradeSum = await manager.getRepository(Trade).createQueryBuilder('trade')
+          .select('SUM(trade.amount)', 'total')
+          .where('trade.sellOrderId = :id', { id: order.id })
+          .getRawOne();
+    
+        const buyTradedAmount = buyTradeSum.total || 0;
+        const sellTradedAmount = sellTradeSum.total || 0;
+        const tradedAmount = buyTradedAmount + sellTradedAmount;
+    
+        // Calculate expected remaining amount
+        const expectedRemaining = order.initAmount - tradedAmount;
+    
+        // Tolerance for floating-point errors
+        const TOLERANCE = 0.00000001;
+    
+        // Validate based on order status
+        let isValid = false;
+        if (order.status === 'filled') {
+          // For filled orders, amount and expectedRemaining should be 0
+          isValid = Math.abs(order.amount) < TOLERANCE && Math.abs(expectedRemaining) < TOLERANCE;
+        } else if (order.status === 'open') {
+          // For open orders, amount should match expectedRemaining
+          isValid = Math.abs(expectedRemaining - order.amount) < TOLERANCE;
+        } else if (order.status === 'cancelled') {
+          // For cancelled orders, tradedAmount should be consistent with initAmount - amount
+          isValid = Math.abs(order.initAmount - order.amount - tradedAmount) < TOLERANCE;
+        }
+    
+        // Log detailed validation result
+        if (!isValid) {
+          console.error(
+            `Volume mismatch for order ${order.id}: ` +
+            `status=${order.status}, initAmount=${order.initAmount}, ` +
+            `amount=${order.amount}, traded=${tradedAmount}, ` +
+            `buyTraded=${buyTradedAmount}, sellTraded=${sellTradedAmount}, ` +
+            `expectedRemaining=${expectedRemaining}`
+          );
+        } else {
+          console.log(
+            `Volume validated for order ${order.id}: ` +
+            `status=${order.status}, initAmount=${order.initAmount}, ` +
+            `amount=${order.amount}, traded=${tradedAmount}, ` +
+            `buyTraded=${buyTradedAmount}, sellTraded=${sellTradedAmount}`
+          );
+        }
+      }
 }

@@ -1,5 +1,5 @@
 
-import { In, LessThan } from "typeorm";
+import { In, LessThan, MoreThan } from "typeorm";
 import { Order } from "../../domain/entities/order";
 import { OrderRepository } from "../../domain/repositories/order-repository";
 import { AppDataSource } from "../../infrastructure/data-source";
@@ -44,7 +44,7 @@ export class PostgresOrderRepository implements OrderRepository{
 
     async findBestBuyOrder(pair: string): Promise<Order | null> {
       const order = await this.repository.findOne({
-        where: {pair,type:'buy',status:'open'},
+        where: {pair,type:'buy',status:'open',amount:MoreThan(0)},
         order:{price:'DESC'}
       })
       return order|| null
@@ -52,9 +52,13 @@ export class PostgresOrderRepository implements OrderRepository{
 
     async findBestSellOrder(pair: string): Promise<Order | null> {
       const order = await this.repository.findOne({
-        where:{pair,type:'sell',status:'open'},
+        where:{pair,type:'sell',status:'open',amount:MoreThan(0)},
         order:{price:'ASC'}
       })
       return order||null
+    }
+
+    async updateAmount(id: number, amount: number): Promise<void> {
+      await this.repository.update(id,{amount})
     }
 }

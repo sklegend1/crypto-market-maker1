@@ -8,4 +8,5 @@ export interface OrderRepository {
     limitOpenOrders(pair: string, maxOrders: number): Promise<void>;
     findBestBuyOrder(pair: string): Promise<Order | null>;
     findBestSellOrder(pair: string): Promise<Order | null>;
+    updateAmount(id: number, amount: number): Promise<void>;
 }

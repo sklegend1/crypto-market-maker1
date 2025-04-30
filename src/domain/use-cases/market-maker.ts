@@ -3,6 +3,7 @@ import { MatchOrderUseCase } from './match-orders';
 import { OrderRepository } from './../repositories/order-repository';
 import { Order } from '../entities/order';
 import { CoinExPriceService } from '../../infrastructure/coinex-price-service';
+import { CoinexDepthService } from '../../infrastructure/coinex-depth-service';
 
 export class MarketMakerUseCase{
     private isProcessing = false;
@@ -11,11 +12,15 @@ export class MarketMakerUseCase{
         private orderRepository:OrderRepository,
         private priceService: CoinExPriceService,
         private matchOrderUseCase:MatchOrderUseCase,
-        private tradeRepository:TradeRepository
+        private tradeRepository:TradeRepository,
+        private depthService:CoinexDepthService
     ){
+
+        
         // Update orders whenever price changes
         this.priceService.onPriceChange((price) => {
             this.execute('BTC/USDT', 0.1, 0.01,0.15);
+            this.depthService.getMarketDepth('BTCUSDT');
       });
     }
 
@@ -48,12 +53,21 @@ export class MarketMakerUseCase{
                 }
             }
 
+            // Check if we need to create new market-maker orders
+            const marketMakerOrders = lastOrders.filter(o => o.source === 'market-maker');
+            const hasBuyOrder = marketMakerOrders.some(o => o.type === 'buy');
+            const hasSellOrder = marketMakerOrders.some(o => o.type === 'sell');
+
+            if (!hasBuyOrder || !hasSellOrder) {
+                needToChange = true;
+              }
+
             // Limit total open orders to 10
             await this.orderRepository.limitOpenOrders(pair, 20);
 
             if(needToChange){
                 console.log(`Creating new orders for ${pair} at price ${currentPrice}`);
-                await this.createOrders(pair,currentPrice,spread,amount); 
+                await this.createOrders(pair,currentPrice,spread,amount,!hasBuyOrder,!hasSellOrder); 
             }
 
             
@@ -64,7 +78,7 @@ export class MarketMakerUseCase{
         
     }
 
-    private async createOrders(pair:string, currentPrice: number, spread: number , amount:number){
+    private async createOrders(pair:string, currentPrice: number, spread: number , amount:number,createBuy:boolean,createSell:boolean){
         // Cancel old orders to keep orderbook clean
         //await this.orderRepository.cancelOldOrders(pair,60);
         // Simple market maker: create buy and sell orders with fixed spread
@@ -77,6 +91,7 @@ export class MarketMakerUseCase{
             type:'buy',
             price: buyPrice,
             amount,
+            initAmount:amount,
             status:'open',
             timestamp:new Date(),
             source:'market-maker'
@@ -87,12 +102,12 @@ export class MarketMakerUseCase{
             type:'sell',
             price: sellPrice,
             amount,
+            initAmount:amount,
             status:'open',
             timestamp:new Date(),
             source:'market-maker'
         };
-
-        await this.orderRepository.create(buyOrder);
-        await this.orderRepository.create(sellOrder);
+        if(createBuy) await this.orderRepository.create(buyOrder);
+        if(createSell) await this.orderRepository.create(sellOrder);
     }
 }

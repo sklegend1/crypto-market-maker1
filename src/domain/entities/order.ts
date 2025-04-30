@@ -18,6 +18,9 @@ export class Order{
     @Column('float')
     amount!:number;
 
+    @Column('float')
+    initAmount!: number; // Initial amount of the order
+
     @Column()
     status!:'open' | 'filled' | 'cancelled';
 
