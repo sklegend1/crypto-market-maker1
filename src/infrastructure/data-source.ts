@@ -12,6 +12,7 @@ export const AppDataSource = new DataSource({
   password: process.env.DBPASS!,
   database: 'users_api',
   entities: [User,Order,Trade],
+  migrations: ['migrations/*.ts'],
   synchronize: true, // Auto-create tables (for development only)
   logging: false
 });
