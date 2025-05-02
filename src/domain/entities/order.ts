@@ -28,5 +28,5 @@ export class Order{
     timestamp! : Date;
 
     @Column({ default: 'market-maker' })
-    source!: 'market-maker' | 'external'; // To distinguish orders
+    source!: 'market-maker' | 'external' | 'coinex'; // To distinguish orders
 }

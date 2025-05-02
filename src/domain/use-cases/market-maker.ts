@@ -1,9 +1,11 @@
+import { OrderSyncService } from './../services/order-sync-service';
 import { TradeRepository } from './../repositories/trade-repository';
 import { MatchOrderUseCase } from './match-orders';
 import { OrderRepository } from './../repositories/order-repository';
 import { Order } from '../entities/order';
 import { CoinExPriceService } from '../../infrastructure/coinex-price-service';
 import { CoinexDepthService } from '../../infrastructure/coinex-depth-service';
+import { MarketAnalysisService } from '../services/market-analysis-service';
 
 export class MarketMakerUseCase{
     private isProcessing = false;
@@ -13,7 +15,9 @@ export class MarketMakerUseCase{
         private priceService: CoinExPriceService,
         private matchOrderUseCase:MatchOrderUseCase,
         private tradeRepository:TradeRepository,
-        private depthService:CoinexDepthService
+        private depthService:CoinexDepthService,
+        private orderSyncService:OrderSyncService,
+        private marketAnalysisService: MarketAnalysisService
     ){
 
         
@@ -24,7 +28,7 @@ export class MarketMakerUseCase{
       });
     }
 
-    async execute(pair:string, spread: number , amount:number, priceDiffThreshold:number = 5): Promise<void>{
+    async execute(pair:string, baseSpread: number , amount:number, priceDiffThreshold:number = 5): Promise<void>{
         if (this.isProcessing) {
             console.log('Skipping execution: another process is running');
             return; // Prevent concurrent executions
@@ -32,6 +36,12 @@ export class MarketMakerUseCase{
 
         this.isProcessing = true
         try {
+            // Sync CoinEx orders
+            await this.orderSyncService.syncOrdersFromCoinEx(pair);
+
+            // Calculate dynamic spread
+            const spread = await this.marketAnalysisService.calculateDynamicSpread(pair);
+
             const currentPrice = this.priceService.getLatestPrice();
             if (!currentPrice){
                 throw new Error('No price data available')

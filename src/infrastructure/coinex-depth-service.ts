@@ -24,7 +24,7 @@ export class CoinexDepthService {
                 throw new Error(`CoinEx API error: ${response.data.message}`);
               }
               console.log('Coinex Depth Response : ',response.data.data)
-              return response.data.data;
+              return response.data.data.depth;
             
         } catch (error) {
             console.error(`Failed to fetch market depth for ${market}:`, error);
