@@ -23,8 +23,13 @@ export class MarketMakerUseCase{
         
         // Update orders whenever price changes
         this.priceService.onPriceChange((price) => {
-            this.execute('BTC/USDT', 0.1, 0.01,0.15);
-            this.depthService.getMarketDepth('BTCUSDT');
+            const tOut = setTimeout(()=>{
+                console.log('Tick !')
+                this.depthService.getMarketDepth('BTCUSDT');
+                this.execute('BTC/USDT', 0.1, 0.01,0.15);
+                
+            },500)
+            
       });
     }
 
@@ -56,6 +61,7 @@ export class MarketMakerUseCase{
             //console.log(lastOrders)
             
             for(const order of lastOrders){
+                
                 if(order.source === 'market-maker' && currentPrice && (Math.abs(order.price - currentPrice) > (currentPrice * (priceDiffThreshold /100)) )){
                     console.log(`Cancelling order ${order.id}: price ${order.price} too far from ${currentPrice}`);
                     await this.orderRepository.cancelOldOrders(pair,0.1);

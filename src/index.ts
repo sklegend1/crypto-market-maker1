@@ -25,6 +25,9 @@ import { CreateExternalOrderUseCase } from './domain/use-cases/create-external-o
 import { CoinexDepthService } from './infrastructure/coinex-depth-service';
 import { OrderSyncService } from './domain/services/order-sync-service';
 import { MarketAnalysisService } from './domain/services/market-analysis-service';
+import { ReportController } from './adapters/controllers/report-controller';
+import { AssetManagementService } from './domain/services/asset-management-service';
+import { ProfitLossService } from './domain/services/profit-loss-service';
 
 const appBase = express();
 const wsInstance = expressWs(appBase)
@@ -47,7 +50,11 @@ AppDataSource.initialize().then(()=>{
     const tradeRepository = new PostgresTradeRepository();
     const priceService = new CoinExPriceService();
     const getOrderbookUseCase = new GetOrderbookUseCase(orderRepository);
-    const matchOrderUseCase = new MatchOrderUseCase(orderRepository, tradeRepository);
+    const assetManagementService = new AssetManagementService();
+const profitLossService = new ProfitLossService(priceService);
+const reportController = new ReportController(profitLossService, assetManagementService);
+
+    const matchOrderUseCase = new MatchOrderUseCase(orderRepository, tradeRepository,assetManagementService);
     const orderSync = new OrderSyncService(orderRepository,depthService);
     const marketAnalysis = new MarketAnalysisService(orderRepository);
     const marketMakerUseCase = new MarketMakerUseCase(orderRepository,priceService,matchOrderUseCase,
@@ -68,6 +75,16 @@ AppDataSource.initialize().then(()=>{
     app.get('/orderbook' , (req,res)=>orderController.getOrderBook(req,res));
     app.post('/match-orders', (req, res) => orderController.matchOrders(req, res));
     app.post('/external-order', (req, res) => orderController.createExternalOrder(req, res));
+    app.get('/report', async (req, res) => {
+        try {
+          const report = await reportController.getReport();
+          res.json(report);
+        } catch (error) {
+          console.error('Error generating report:', error);
+          res.status(500).json({ error: 'Failed to generate report' });
+        }
+      });
+
 
     app.listen(3000,()=>{
         console.log('Server running on http://localhost:3000');

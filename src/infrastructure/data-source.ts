@@ -2,6 +2,9 @@ import { DataSource } from 'typeorm';
 import { User } from '../domain/entities/user';
 import { Order } from '../domain/entities/order';
 import { Trade } from '../domain/entities/trade';
+import { Commission } from '../domain/entities/commission';
+import { Asset } from '../domain/entities/assets';
+import { AssetHistory } from '../domain/entities/asset_history';
 require('dotenv').config();
 
 export const AppDataSource = new DataSource({
@@ -11,7 +14,7 @@ export const AppDataSource = new DataSource({
   username: 'postgres',
   password: process.env.DBPASS!,
   database: 'users_api',
-  entities: [User,Order,Trade],
+  entities: [User,Order,Trade,Commission,Asset,AssetHistory],
   migrations: ['migrations/*.ts'],
   synchronize: true, // Auto-create tables (for development only)
   logging: false

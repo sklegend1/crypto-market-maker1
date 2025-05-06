@@ -3,7 +3,7 @@ import { Asset } from "../entities/assets";
 import { AssetHistory } from "../entities/asset_history";
 import { Commission } from "../entities/commission";
 
-export class AssetManegementService {
+export class AssetManagementService {
     async getBalance(currency:string){
         const asset = await AppDataSource.getRepository(Asset).findOne({where : {currency}});
         return asset?asset.balance : 0 ;

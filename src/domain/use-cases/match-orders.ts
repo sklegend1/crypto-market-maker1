@@ -3,12 +3,14 @@ import { Order } from "../entities/order";
 import { Trade } from "../entities/trade";
 import { TradeRepository } from '../repositories/trade-repository';
 import { AppDataSource } from '../../infrastructure/data-source';
+import { AssetManagementService } from '../services/asset-management-service';
 
 
 export class MatchOrderUseCase{
     constructor(
         private orderRepository:OrderRepository,
-        private tradeRepository:TradeRepository
+        private tradeRepository:TradeRepository,
+        private assetManagementService: AssetManagementService
     ){}
 
     async execute(pair:string):Promise<void>{
@@ -45,26 +47,49 @@ export class MatchOrderUseCase{
                     timestamp:new Date()
                 }
 
-                await transactionalEntityManager.getRepository(Trade).save(trade);
+                const savedTrade = await transactionalEntityManager.getRepository(Trade).save(trade);
 
+
+                // Calculate commission (0.1% of trade value) if either order is coinex or external
+                const tradeValue = tradePrice * tradeAmount;
+                const commissionRate = 0.001; // 0.1%
+                let commission = 0;
+                if (buyOrder.source !== 'market-maker' || sellOrder.source !== 'market-maker') {
+                  commission = tradeValue * commissionRate;
+                  await this.assetManagementService.addCommission(savedTrade.id, commission);
+                }
                 //Update orders
+                // Update assets for market-maker orders
+                if (buyOrder.source === 'market-maker') {
+                  // Market-maker buys: increase BTC, decrease USDT
+                  await this.assetManagementService.updateBalance('BTC', tradeAmount, 'trade', savedTrade.id);
+                  await this.assetManagementService.updateBalance('USDT', -tradeValue, 'trade', savedTrade.id);
+                }
+                if (sellOrder.source === 'market-maker') {
+                  // Market-maker sells: decrease BTC, increase USDT
+                  await this.assetManagementService.updateBalance('BTC', -tradeAmount, 'trade', savedTrade.id);
+                  await this.assetManagementService.updateBalance('USDT', tradeValue, 'trade', savedTrade.id);
+                }
+
                 // Update order amounts and statuses
                 const buyRemaining = buyOrder.amount - tradeAmount;
                 const sellRemaining = sellOrder.amount - tradeAmount;
+                console.log(`Buy remaining: ${buyRemaining}, Sell remaining: ${sellRemaining}`);
 
                 if (buyRemaining <= 0) {
                     await transactionalEntityManager.getRepository(Order).update(buyOrder.id, {status:'filled',amount:0});
-                    
+                    console.log(`Buy order ${buyOrder.id} marked as filled`);
                   } else {
                     await transactionalEntityManager.getRepository(Order).update(buyOrder.id, {amount:buyRemaining});
+                    console.log(`Buy order ${buyOrder.id} updated amount to ${buyRemaining}`);
                   }
                 
                 if (sellRemaining <= 0) {
                     await transactionalEntityManager.getRepository(Order).update(sellOrder.id, {status:'filled',amount:0});
-                    
+                    console.log(`Sell order ${sellOrder.id} marked as filled`);
                 } else {
-                    
-                await transactionalEntityManager.getRepository(Order).update(sellOrder.id, {amount:sellRemaining});
+                    await transactionalEntityManager.getRepository(Order).update(sellOrder.id, {amount:sellRemaining});
+                    console.log(`Sell order ${sellOrder.id} updated amount to ${sellRemaining}`);
                 }
                 // Refresh orders to get updated status and amount
                 const updatedBuyOrder = await transactionalEntityManager.getRepository(Order).findOne({ where: { id: buyOrder.id } });
@@ -76,11 +101,7 @@ export class MatchOrderUseCase{
             })
 
                 //console.log(`Matched trade: ${pair} at ${tradePrice}, amount ${tradeAmount}`);
-
-                
-                    
-                
-
+                console.log(`Matched trade: ${pair} at ${(buyOrder.price + sellOrder.price) / 2}, amount ${Math.min(buyOrder.amount, sellOrder.amount)}`);
             }
             else{
                 console.log(`Match is impossible => Buy Price: ${buyOrder.price} , Sell Price: ${sellOrder.price}`)
