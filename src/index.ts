@@ -28,6 +28,7 @@ import { MarketAnalysisService } from './domain/services/market-analysis-service
 import { ReportController } from './adapters/controllers/report-controller';
 import { AssetManagementService } from './domain/services/asset-management-service';
 import { ProfitLossService } from './domain/services/profit-loss-service';
+import { CoinexPriceServiceRest } from './infrastructure/coinex-price-service-rest';
 
 const appBase = express();
 const wsInstance = expressWs(appBase)
@@ -49,16 +50,17 @@ AppDataSource.initialize().then(()=>{
     const orderRepository = new PostgresOrderRepository();
     const tradeRepository = new PostgresTradeRepository();
     const priceService = new CoinExPriceService();
+    const btcPriceService= new CoinexPriceServiceRest('BTCUSDT');
     const getOrderbookUseCase = new GetOrderbookUseCase(orderRepository);
     const assetManagementService = new AssetManagementService();
-const profitLossService = new ProfitLossService(priceService);
-const reportController = new ReportController(profitLossService, assetManagementService);
+    const profitLossService = new ProfitLossService(btcPriceService);
+    const reportController = new ReportController(profitLossService, assetManagementService);
 
     const matchOrderUseCase = new MatchOrderUseCase(orderRepository, tradeRepository,assetManagementService);
     const orderSync = new OrderSyncService(orderRepository,depthService);
     const marketAnalysis = new MarketAnalysisService(orderRepository);
     const marketMakerUseCase = new MarketMakerUseCase(orderRepository,priceService,matchOrderUseCase,
-        tradeRepository,depthService,orderSync,marketAnalysis);
+        assetManagementService,depthService,orderSync,marketAnalysis,btcPriceService);
     const createExternalOrderUseCase = new CreateExternalOrderUseCase(orderRepository);
     const orderController = new OrderController(marketMakerUseCase,getOrderbookUseCase,matchOrderUseCase,createExternalOrderUseCase);
 

@@ -12,8 +12,10 @@ export class OrderSyncService{
 
     async syncOrdersFromCoinEx(pair:string):Promise<void>{
         // Get market depth
-        const depth:MarketDepth = await this.coinexDepthService.getMarketDepth(pair.replace('/',''));
-
+        const depth:MarketDepth|null = await this.coinexDepthService.getMarketDepth(pair.replace('/',''));
+        if(!depth){
+          return
+        }
         // Prepare orders from bids and asks
         const orders:Omit<Order, 'id'>[] = [];
 

@@ -26,7 +26,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
              timestamp TIMESTAMP NOT NULL
            );
 
-           INSERT INTO assets (currency, balance) VALUES ('USDT', 100000), ('BTC', 1);
+           INSERT INTO assets (currency, balance) VALUES ('USDT', 1000), ('BTC', 0.01);
          `);
        }
 

@@ -3,12 +3,27 @@ import { In, LessThan, MoreThan } from "typeorm";
 import { Order } from "../../domain/entities/order";
 import { OrderRepository } from "../../domain/repositories/order-repository";
 import { AppDataSource } from "../../infrastructure/data-source";
+import { Asset } from "../../domain/entities/assets";
 
 export class PostgresOrderRepository implements OrderRepository{
     private repository = AppDataSource.getRepository(Order);
+    private assets = AppDataSource.getRepository(Asset)
 
     async create(order: Omit<Order, "id">): Promise<Order> {
         const newOrder = this.repository.create({...order,timestamp : new Date()});
+        // if(newOrder&&order.type==='buy'){
+        //   const assetIns = await this.assets.findOne({where:{currency:order.pair.split('/')[1]}})
+        //   if(assetIns?.balance){
+        //     await this.assets.update({currency:order.pair},{balance:assetIns.balance-order.amount})
+        //   }
+        // }
+        // else if(newOrder&&order.type==='sell'){
+        //   const assetIns = await this.assets.findOne({where:{currency:order.pair.split('/')[0]}})
+        //   if(assetIns?.balance){
+        //     await this.assets.update({currency:order.pair},{balance:assetIns.balance-order.amount})
+        //   }
+        // }
+        
         return this.repository.save(newOrder);
     }
 
@@ -20,17 +35,17 @@ export class PostgresOrderRepository implements OrderRepository{
         await this.repository.update(id,{status});
     }
 
-    async cancelOldOrders(pair:string,maxAgeSeconds:number) :Promise<void>{
+    async cancelOldOrders(pair:string,maxAgeSeconds:number,source:Order['source']) :Promise<void>{
         const cutoff = new Date(Date.now() - (maxAgeSeconds*1000));
         await this.repository.update(
-            {pair,status:'open',timestamp:LessThan(cutoff)},
+            {pair,status:'open',source,timestamp:LessThan(cutoff)},
             {status:'cancelled'}
         )
     }
 
-    async limitOpenOrders(pair: string, maxOrders: number): Promise<void> {
+    async limitOpenOrders(pair: string, maxOrders: number,source:Order['source']): Promise<void> {
         const openOrders = await this.repository.find({
-          where: { pair, status: 'open' },
+          where: { pair, status: 'open' ,source },
           order: { timestamp: 'ASC' }
         });
         if (openOrders.length > maxOrders) {

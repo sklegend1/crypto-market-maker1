@@ -6,6 +6,8 @@ import { Order } from '../entities/order';
 import { CoinExPriceService } from '../../infrastructure/coinex-price-service';
 import { CoinexDepthService } from '../../infrastructure/coinex-depth-service';
 import { MarketAnalysisService } from '../services/market-analysis-service';
+import { CoinexPriceServiceRest } from '../../infrastructure/coinex-price-service-rest';
+import { AssetManagementService } from '../services/asset-management-service';
 
 export class MarketMakerUseCase{
     private isProcessing = false;
@@ -14,23 +16,31 @@ export class MarketMakerUseCase{
         private orderRepository:OrderRepository,
         private priceService: CoinExPriceService,
         private matchOrderUseCase:MatchOrderUseCase,
-        private tradeRepository:TradeRepository,
+        private assetManager:AssetManagementService,
         private depthService:CoinexDepthService,
         private orderSyncService:OrderSyncService,
-        private marketAnalysisService: MarketAnalysisService
+        private marketAnalysisService: MarketAnalysisService,
+        private priceServiceRest:CoinexPriceServiceRest
     ){
 
         
         // Update orders whenever price changes
-        this.priceService.onPriceChange((price) => {
-            const tOut = setTimeout(()=>{
-                console.log('Tick !')
-                this.depthService.getMarketDepth('BTCUSDT');
-                this.execute('BTC/USDT', 0.1, 0.01,0.15);
+        //     this.priceService.onPriceChange((price) => {
+        //         const tOut = setTimeout(()=>{
+        //             console.log('Tick !')
+        //             this.depthService.getMarketDepth('BTCUSDT');
+        //             this.execute('BTC/USDT', 0.1, 0.01,0.15);
+                    
+        //         },500)
                 
-            },500)
-            
-      });
+        //   });
+
+        //update orders from rest api
+        this.priceServiceRest.onPriceChange((price) => {
+                this.depthService.getMarketDepth('BTCUSDT');
+                this.execute('BTC/USDT', 0.1, 0.001,0.15);
+        });
+
     }
 
     async execute(pair:string, baseSpread: number , amount:number, priceDiffThreshold:number = 5): Promise<void>{
@@ -47,7 +57,7 @@ export class MarketMakerUseCase{
             // Calculate dynamic spread
             const spread = await this.marketAnalysisService.calculateDynamicSpread(pair);
 
-            const currentPrice = this.priceService.getLatestPrice();
+            const currentPrice = this.priceServiceRest.getLatest();
             if (!currentPrice){
                 throw new Error('No price data available')
             }
@@ -64,7 +74,7 @@ export class MarketMakerUseCase{
                 
                 if(order.source === 'market-maker' && currentPrice && (Math.abs(order.price - currentPrice) > (currentPrice * (priceDiffThreshold /100)) )){
                     console.log(`Cancelling order ${order.id}: price ${order.price} too far from ${currentPrice}`);
-                    await this.orderRepository.cancelOldOrders(pair,0.1);
+                    await this.orderRepository.cancelOldOrders(pair,0.1,'market-maker');
                     needToChange = true
                 }
             }
@@ -79,11 +89,11 @@ export class MarketMakerUseCase{
               }
 
             // Limit total open orders to 10
-            await this.orderRepository.limitOpenOrders(pair, 20);
+            await this.orderRepository.limitOpenOrders(pair, 20,'market-maker');
 
             if(needToChange){
                 console.log(`Creating new orders for ${pair} at price ${currentPrice}`);
-                await this.createOrders(pair,currentPrice,spread,amount,!hasBuyOrder,!hasSellOrder); 
+                await this.createOrders(pair,currentPrice,spread+0.05,amount,!hasBuyOrder,!hasSellOrder); 
             }
 
             
@@ -100,7 +110,10 @@ export class MarketMakerUseCase{
         // Simple market maker: create buy and sell orders with fixed spread
         const buyPrice = currentPrice * (1- (spread/100));
         const sellPrice = currentPrice * (1+ (spread/100));
-        
+        const asset1Balance = await this.assetManager.getBalance(pair.split('/')[0])
+        const asset2Balance = await this.assetManager.getBalance(pair.split('/')[1])
+        console.log(pair.split('/')[0]+' Balance : ',asset1Balance,pair.split('/')[1]+' Balance : ',asset2Balance)
+
 
         const buyOrder: Omit<Order,'id'> = {
             pair,
@@ -123,7 +136,25 @@ export class MarketMakerUseCase{
             timestamp:new Date(),
             source:'market-maker'
         };
-        if(createBuy) await this.orderRepository.create(buyOrder);
-        if(createSell) await this.orderRepository.create(sellOrder);
+        const inOrder = await this.orderRepository.findOpenOrders(pair);
+        let inOrderUSDTs = 0 
+        let inOrderBTCs = 0 
+        inOrder.forEach((order)=>{
+            if(order.source === 'market-maker'){
+                if(order.type==='sell'){
+                    inOrderBTCs +=order.amount
+                }
+                else{
+                    inOrderUSDTs += order.amount*order.price
+                }
+            }
+        })
+        if(createBuy && ((asset2Balance - inOrderUSDTs)>buyOrder.amount)) {
+            const orderSaved = await this.orderRepository.create(buyOrder)
+        };
+        if(createSell && ((asset1Balance-inOrderBTCs)>sellOrder.amount)) {
+            const orderSaved = await this.orderRepository.create(sellOrder);
+            
+        }
     }
 }

@@ -8,7 +8,7 @@ export class CoinExPriceService{
     private onPriceUpdate:(price: number ) => void = () =>{};
 
     constructor(){
-        this.connect();
+        //this.connect();
     }
 
     private connect(){
@@ -79,6 +79,6 @@ export class CoinExPriceService{
       }
     
     public onPriceChange(callback: (price: number) => void) {
-        this.onPriceUpdate = callback;
+        //this.onPriceUpdate = callback;
     }
 }

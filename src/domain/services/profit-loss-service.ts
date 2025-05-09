@@ -2,19 +2,21 @@ import { AppDataSource } from '../../infrastructure/data-source';
 import { Asset } from '../entities/assets';
 import { Commission } from '../entities/commission';
 import { CoinExPriceService } from '../../infrastructure/coinex-price-service';
+import { CoinexPriceServiceRest } from '../../infrastructure/coinex-price-service-rest';
 
 export class ProfitLossService {
-  constructor(private priceService: CoinExPriceService) {}
+  constructor(private priceService: CoinexPriceServiceRest) {}
 
   async calculateProfitLoss(): Promise<{
     totalValue: number;
     initialValue: number;
     profitLoss: number;
+    trades:number;
     commissions: number;
   }> {
     // Initial values
-    const initialUSDT = 100000;
-    const initialBTC = 1;
+    const initialUSDT = 100;
+    const initialBTC = 0.1;
 
     // Current balances
     const usdtBalance = await AppDataSource.getRepository(Asset)
@@ -25,10 +27,11 @@ export class ProfitLossService {
       .then((asset) => asset?.balance || 0);
 
     // Current BTC price
-    const btcPrice = this.priceService.getLatestPrice() || 95000;
+    const btcPrice = this.priceService.getLatest() || 95000;
 
     // Total value
-    const totalValue = usdtBalance + btcBalance * btcPrice;
+    const totalValue = usdtBalance + (btcBalance * btcPrice);
+    console.log('Total Value',totalValue)
     const initialValue = initialUSDT + initialBTC * btcPrice;
 
     // Commissions
@@ -41,8 +44,10 @@ export class ProfitLossService {
     return {
       totalValue,
       initialValue,
-      profitLoss: totalValue - initialValue + commissions,
+      trades:totalValue  - commissions- initialValue,
       commissions,
+      profitLoss: totalValue-initialValue ,
+      
     };
   }
 }
