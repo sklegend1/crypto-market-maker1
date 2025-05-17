@@ -29,6 +29,7 @@ import { ReportController } from './adapters/controllers/report-controller';
 import { AssetManagementService } from './domain/services/asset-management-service';
 import { ProfitLossService } from './domain/services/profit-loss-service';
 import { CoinexPriceServiceRest } from './infrastructure/coinex-price-service-rest';
+import { authMiddleware,AuthRequest } from './infrastructure/middlewares/auth-middleware';
 
 const appBase = express();
 const wsInstance = expressWs(appBase)
@@ -65,12 +66,17 @@ AppDataSource.initialize().then(()=>{
     const orderController = new OrderController(marketMakerUseCase,getOrderbookUseCase,matchOrderUseCase,createExternalOrderUseCase);
 
     
-
+      //old user api
     app.get('/users',(req,res)=>userController.getUsers(req,res));
     app.get('/users/:id',(req,res)=>userController.getUserById(req,res));
     app.post('/users',(req,res)=>userController.createUser(req,res));
     app.put('/users/:id',(req,res)=>userController.updateUser(req,res));
     app.delete('/users/:id',(req,res)=>userController.deleteUser(req,res));
+
+    // User Routes
+    app.post('/signup', userController.signup.bind(userController));
+    app.post('/login', userController.login.bind(userController));
+    app.get('/profile', authMiddleware, userController.getProfile.bind(userController));
 
     // Market Maker Routes
     app.post('/market-maker',(req,res)=>orderController.runMarketMaker(req,res));

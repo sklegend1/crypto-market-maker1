@@ -50,4 +50,8 @@ export class UserService{
         return token
     }
 
+    async getUserById(userId: string): Promise<User | null> {
+        return await this.userRepository.findOneBy({ id: userId });
+      }
+
 }
