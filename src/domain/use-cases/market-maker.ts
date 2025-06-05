@@ -93,7 +93,7 @@ export class MarketMakerUseCase{
 
             if(needToChange){
                 console.log(`Creating new orders for ${pair} at price ${currentPrice}`);
-                await this.createOrders(pair,currentPrice,spread+0.05,amount,!hasBuyOrder,!hasSellOrder); 
+                await this.createOrders(pair,currentPrice,spread,amount,!hasBuyOrder,!hasSellOrder); 
             }
 
             

@@ -38,13 +38,13 @@ app.use(express.json());
 
 AppDataSource.initialize().then(()=>{
     console.log('Database connected');
-    const userRepository = new PostgresUserRepository();
-    const getUsersUseCase = new GetUsersUseCase(userRepository);
-    const getUserByIdUseCase = new GetUserByIdUseCase(userRepository);
-    const createUserUseCase = new CreateUserUseCase(userRepository);
-    const updateUserUseCase = new UpdateUserUseCase(userRepository);
-    const deleteUserUseCase = new DeleteUserUseCase(userRepository);
-    const userController = new UserController(getUsersUseCase,getUserByIdUseCase,createUserUseCase,updateUserUseCase,deleteUserUseCase);
+    //const userRepository = new PostgresUserRepository();
+    // const getUsersUseCase = new GetUsersUseCase(userRepository);
+    // const getUserByIdUseCase = new GetUserByIdUseCase(userRepository);
+    // const createUserUseCase = new CreateUserUseCase(userRepository);
+    // const updateUserUseCase = new UpdateUserUseCase(userRepository);
+    // const deleteUserUseCase = new DeleteUserUseCase(userRepository);
+    const userController = new UserController();
     
     const depthService = new CoinexDepthService();
     
@@ -66,12 +66,12 @@ AppDataSource.initialize().then(()=>{
     const orderController = new OrderController(marketMakerUseCase,getOrderbookUseCase,matchOrderUseCase,createExternalOrderUseCase);
 
     
-      //old user api
-    app.get('/users',(req,res)=>userController.getUsers(req,res));
-    app.get('/users/:id',(req,res)=>userController.getUserById(req,res));
-    app.post('/users',(req,res)=>userController.createUser(req,res));
-    app.put('/users/:id',(req,res)=>userController.updateUser(req,res));
-    app.delete('/users/:id',(req,res)=>userController.deleteUser(req,res));
+    //   //old user api
+    // app.get('/users',(req,res)=>userController.getUsers(req,res));
+    // app.get('/users/:id',(req,res)=>userController.getUserById(req,res));
+    // app.post('/users',(req,res)=>userController.createUser(req,res));
+    // app.put('/users/:id',(req,res)=>userController.updateUser(req,res));
+    // app.delete('/users/:id',(req,res)=>userController.deleteUser(req,res));
 
     // User Routes
     app.post('/signup', userController.signup.bind(userController));
